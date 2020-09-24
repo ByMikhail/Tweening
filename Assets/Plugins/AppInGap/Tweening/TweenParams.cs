@@ -4,6 +4,5 @@
     {
         public T from;
         public T to;
-        public IEasingClip easingClip;
     }
 }

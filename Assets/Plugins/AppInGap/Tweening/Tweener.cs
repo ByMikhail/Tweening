@@ -1,20 +1,38 @@
 ﻿using UnityEngine;
 using AppInGap.Managers;
+using AppInGap.Tweening.EasingClips;
 
 namespace AppInGap.Tweening
 {
+    /// <summary>
+    /// Plays tweens
+    /// </summary>
     public sealed class Tweener<T> : IUpdatable
     {
+        struct DelegateBasedInterpolator<U> : IInterpolator<U>
+        {
+            private readonly Interpolator<U> m_Interpolator;
+
+            public DelegateBasedInterpolator(Interpolator<U> interpolator)
+            {
+                m_Interpolator = interpolator;
+            }
+
+            public U Interpolate(U from, U to, float interpolant)
+            {
+                return m_Interpolator(from, to, interpolant);
+            }
+        }
+
         #region Private fields
-        
+
         private bool m_IsPlaying;
         private ValueSetter<T> m_Setter;
         private IInterpolator<T> m_Interpolator;
         private float m_AnimatePhysics;
         private TweenParams<T> m_TweenParams;
+        private IEasingClip m_EasingClip;
         private float m_Elapsed;
-        private float m_IsLooped;
-        private static Updater m_Updater;
 
         #endregion
 
@@ -30,9 +48,13 @@ namespace AppInGap.Tweening
             m_AnimatePhysics = animatePhysics ? 1f : 0f;
         }
 
-        public void Start(TweenParams<T> tweenParams)
+        public Tweener(Interpolator<T> interpolator, bool animatePhysics, ValueSetter<T> setter)
+        : this(new DelegateBasedInterpolator<T>(interpolator), animatePhysics, setter) {}
+
+        public void Start(TweenParams<T> tweenParams, IEasingClip easingClip)
         {
             m_TweenParams = tweenParams;
+            m_EasingClip = easingClip;
             m_Elapsed = 0f;
 
             if (!m_IsPlaying)
@@ -43,10 +65,14 @@ namespace AppInGap.Tweening
             m_IsPlaying = true;
         }
 
+        public void Start(TweenParams<T> tweenParams, float duration)
+        {
+            Start(tweenParams, new SmoothstepClip(duration));
+        }
+
         public void Stop()
         {
             m_IsPlaying = false;
-            m_IsLooped = 0f;
 
             Updater.defaultUpdater.RemoveTarget(this);
         }
@@ -57,7 +83,7 @@ namespace AppInGap.Tweening
 
         private bool HasReachedEnd()
         {
-            return m_Elapsed >= m_TweenParams.easingClip.duration && m_IsLooped == 0f;
+            return m_Elapsed >= m_EasingClip.duration;
         }
 
         private void IncreaseElapsedTime()
@@ -67,16 +93,12 @@ namespace AppInGap.Tweening
             float deltaTime = m_AnimatePhysics * fdx + (1f - m_AnimatePhysics) * dt;
 
             m_Elapsed += deltaTime;
-            float looped = m_Elapsed % m_TweenParams.easingClip.duration;
-            float unlooped = Mathf.Min(m_Elapsed, m_TweenParams.easingClip.duration);
-            m_Elapsed = m_IsLooped * looped + (1f - m_IsLooped) * unlooped;
         }
 
-        private void SendValue()
+        private T CalculateTweenState()
         {
-            float interpolant = m_TweenParams.easingClip.ValueAt(m_Elapsed);
-            T interpolatedValue = m_Interpolator.Interpolate(m_TweenParams.from, m_TweenParams.to, interpolant);
-            m_Setter(interpolatedValue);
+            float interpolant = m_EasingClip.ValueAt(m_Elapsed);
+            return m_Interpolator.Interpolate(m_TweenParams.from, m_TweenParams.to, interpolant);
         }
 
         #endregion
@@ -92,7 +114,9 @@ namespace AppInGap.Tweening
             else
             {
                 IncreaseElapsedTime();
-                SendValue();
+
+                T tweenState = CalculateTweenState();
+                m_Setter(tweenState);
             }
         }
 

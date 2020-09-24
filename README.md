@@ -29,16 +29,17 @@ Tweener<Vector3> positionTweener = new Tweener<Vector3>(
 3. **Create a tween parameters' container**
 
 ```csharp
-var tweenParams = new TweenParams<Vector3>(
-	from: transform.position,
-	to: transform.position + Vector3.foward * 3f
-);
+var tweenParams = new TweenParams<Vector3>()
+{
+	from = transform.position,
+	to = transform.position + transform.forward * 3f
+};
 ```
 
 4. **Let the tweener do its work**
 
 ```csharp
-positionTweener.Start(tweenParams);
+positionTweener.Start(tweenParams, duration: 1f);
 ```
 
 **Get the result**
